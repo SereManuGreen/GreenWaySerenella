@@ -1,0 +1,780 @@
+/**
+ * Serenella - Green Business Lead Funnel Frontend Logic
+ */
+
+document.addEventListener('DOMContentLoaded', () => {
+    // ==========================================
+    // DOM ELEMENTS
+    // ==========================================
+    const modalOverlay = document.getElementById('lead-modal-overlay');
+    const btnCloseModal = document.getElementById('btn-close-modal');
+    const openModalBtns = document.querySelectorAll('.btn-open-modal');
+    const form = document.getElementById('lead-multi-step-form');
+    const modalFooter = document.getElementById('modal-form-footer');
+    
+    // Form navigation buttons
+    const btnPrevStep = document.getElementById('btn-prev-step');
+    const btnNextStep = document.getElementById('btn-next-step');
+    
+    // Steps elements
+    const steps = document.querySelectorAll('.form-step-content');
+    const stepDots = document.querySelectorAll('.step-dot');
+    const stepProgressBar = document.getElementById('step-progress-bar');
+    const modalTitle = document.getElementById('form-title');
+    
+    // Hidden inputs
+    const inputProvenienza = document.getElementById('lead-provenienza');
+    
+    // Product filters
+    const filterButtons = document.querySelectorAll('.filter-btn');
+    const productCards = document.querySelectorAll('.product-card');
+    
+    // FAQ accordion
+    const faqItems = document.querySelectorAll('.faq-item');
+    
+    // Toast Alert
+    const toast = document.getElementById('alert-toast');
+    const toastMessage = document.getElementById('alert-toast-message');
+
+    // Default products based on actual Greenway Global lines
+    const defaultProducts = [
+        {
+            category: "cleaning",
+            title: "Green Fiber Home P1 per Vetri",
+            tag: "Best Seller",
+            desc: "Fibra speciale per vetri, specchi e superfici lucide. Pulisce perfettamente utilizzando solo acqua, eliminando l'uso di detergenti chimici inquinanti.",
+            img: "images/green_products.png",
+            features: ["Elimina il 90% della chimica", "Niente aloni, garantito oltre 2 anni"],
+            url: "https://greenwayglobal.it/"
+        },
+        {
+            category: "beauty",
+            title: "Sharme Hair Coconut",
+            tag: "Bio certificato",
+            desc: "Shampoo solido naturale e biologico per capelli secchi. Idrata in profondità, è ecologico, biodegradabile e completamente privo di plastica.",
+            img: "images/green_products.png",
+            features: ["Ingredienti 100% biodegradabili", "Zero plastica e packaging riciclabile"],
+            url: "https://greenwayglobal.it/"
+        },
+        {
+            category: "wellness",
+            title: "Welllab C-Complex",
+            tag: "Innovazione",
+            desc: "Integratore alimentare a base di Vitamina C attiva arricchito con bioflavonoidi ed estratti vegetali, formulato per rafforzare le difese immunitarie.",
+            img: "images/green_products.png",
+            features: ["Estratti botanici ad alta efficacia", "Senza coloranti o aromi artificiali"],
+            url: "https://greenwayglobal.it/"
+        }
+    ];
+
+    let productsList = defaultProducts;
+
+    // Load custom configuration if it exists
+    const localContent = localStorage.getItem('serenella_custom_content');
+    let customContent = null;
+    
+    if (window.SERENELLA_CONFIG) {
+        customContent = window.SERENELLA_CONFIG;
+    } else if (localContent) {
+        customContent = JSON.parse(localContent);
+    }
+    
+    if (customContent) {
+        // Apply Hero custom texts
+        if (customContent.heroTitle) {
+            const heroTitleEl = document.getElementById('hero-title');
+            if (heroTitleEl) heroTitleEl.textContent = customContent.heroTitle;
+        }
+        if (customContent.heroDesc) {
+            const heroDescEl = document.getElementById('hero-desc');
+            if (heroDescEl) heroDescEl.textContent = customContent.heroDesc;
+        }
+        
+        // Apply Profile Image
+        if (customContent.profileImg) {
+            const profileImgEl = document.getElementById('hero-profile-img');
+            if (profileImgEl) profileImgEl.src = customContent.profileImg;
+        }
+        
+        // Dynamic products assignment
+        if (customContent.products && Array.isArray(customContent.products)) {
+            productsList = customContent.products;
+        }
+        
+        // Apply FAQ custom texts
+        const faqGroup = document.getElementById('faq-accordion-group');
+        if (faqGroup && faqGroup.children.length >= 4) {
+            const faqData = [
+                { q: customContent.faq1Q, a: customContent.faq1A },
+                { q: customContent.faq2Q, a: customContent.faq2A },
+                { q: customContent.faq3Q, a: customContent.faq3A },
+                { q: customContent.faq4Q, a: customContent.faq4A }
+            ];
+            
+            faqData.forEach((data, index) => {
+                const item = faqGroup.children[index];
+                if (item && data.q && data.a) {
+                    const questionBtn = item.querySelector('.faq-question');
+                    if (questionBtn) {
+                        questionBtn.innerHTML = data.q + ` <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>`;
+                    }
+                    const answerP = item.querySelector('.faq-answer p');
+                    if (answerP) {
+                        answerP.textContent = data.a;
+                    }
+                }
+            });
+        }
+        
+        // Store updated assets variables
+        if (customContent.webinarUrl) webinarUrl = customContent.webinarUrl;
+        if (customContent.guideName) guideName = customContent.guideName;
+        if (customContent.calendarUrl) calendarUrl = customContent.calendarUrl;
+        if (customContent.whatsappNum) whatsappNum = customContent.whatsappNum;
+        if (customContent.catalogUrl) catalogUrl = customContent.catalogUrl;
+
+        // Apply catalog button URL
+        const catalogBtn = document.getElementById('catalog-btn');
+        if (catalogBtn && customContent.catalogUrl) {
+            catalogBtn.href = customContent.catalogUrl;
+        }
+    }
+
+    // Dynamic products rendering
+    function renderProducts() {
+        const productsGrid = document.getElementById('products-grid');
+        if (!productsGrid) return;
+        
+        productsGrid.innerHTML = '';
+        
+        productsList.forEach((product, index) => {
+            const card = document.createElement('div');
+            card.className = 'product-card animate-fade';
+            card.setAttribute('data-category', product.category);
+            card.id = `prod-card-${index + 1}`;
+            
+            const tagHtml = product.tag && product.tag.trim() !== '' 
+                ? `<span class="product-tag">${product.tag}</span>` 
+                : '';
+                
+            const featuresHtml = (product.features || []).map(feat => {
+                if (!feat || feat.trim() === '') return '';
+                return `
+                    <li>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                        ${feat}
+                    </li>
+                `;
+            }).join('');
+            
+            const urlHtml = product.url && product.url.trim() !== '' 
+                ? `
+                    <div style="margin-top: 15px;">
+                        <a href="${product.url}" target="_blank" class="btn btn-tertiary" style="display: inline-flex; align-items: center; justify-content: center; gap: 6px; width: 100%; font-size: 0.85rem; padding: 8px 12px; font-weight: 600;">
+                            Acquista / Scopri di più
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+                        </a>
+                    </div>
+                ` 
+                : '';
+                
+            card.innerHTML = `
+                <div class="product-image">
+                    <img src="${product.img || 'images/green_products.png'}" alt="${product.title}">
+                    ${tagHtml}
+                </div>
+                <div class="product-info">
+                    <h3>${product.title}</h3>
+                    <p>${product.desc}</p>
+                    <ul class="product-feature-list">
+                        ${featuresHtml}
+                    </ul>
+                    ${urlHtml}
+                </div>
+            `;
+            productsGrid.appendChild(card);
+        });
+    }
+
+    // Call dynamic rendering
+    renderProducts();
+
+    // ==========================================
+    // PRODUCTS FILTERING (DYNAMIC VERSION)
+    // ==========================================
+    filterButtons.forEach(button => {
+        button.addEventListener('click', () => {
+            // Remove active class from all buttons
+            filterButtons.forEach(btn => btn.classList.remove('active'));
+            // Add active to current
+            button.classList.add('active');
+            
+            const filterValue = button.getAttribute('data-filter');
+            const currentCards = document.querySelectorAll('.product-card');
+            
+            currentCards.forEach(card => {
+                const category = card.getAttribute('data-category');
+                if (filterValue === 'all' || category === filterValue) {
+                    card.style.display = 'flex';
+                } else {
+                    card.style.display = 'none';
+                }
+            });
+        });
+    });
+
+    // ==========================================
+    // FAQ ACCORDION
+    // ==========================================
+    faqItems.forEach(item => {
+        const questionBtn = item.querySelector('.faq-question');
+        questionBtn.addEventListener('click', () => {
+            const isActive = item.classList.contains('active');
+            
+            // Close all items
+            faqItems.forEach(i => i.classList.remove('active'));
+            
+            // Open clicked item if it wasn't active
+            if (!isActive) {
+                item.classList.add('active');
+            }
+        });
+    });
+
+    // ==========================================
+    // MODAL OPEN / CLOSE LOGIC
+    // ==========================================
+    function openModal(originText, targetInterest) {
+        modalOverlay.classList.add('active');
+        document.body.style.overflow = 'hidden'; // Disable scroll background
+        
+        // Reset form to step 1
+        currentStep = 1;
+        updateFormStep();
+        
+        // Reset dynamic title
+        modalTitle.textContent = "Iniziamo il tuo percorso";
+        modalFooter.style.display = 'flex';
+        
+        // Set metadata
+        inputProvenienza.value = originText;
+        
+        // Apply pre-selections
+        if (targetInterest) {
+            // If the interest matches radio button values
+            const interestRadio = form.querySelector(`input[name="interesse"][value="${targetInterest}"]`);
+            if (interestRadio) {
+                interestRadio.checked = true;
+                // Add selected class to the parent radio card
+                updateRadioCardStyles();
+            }
+            
+            // Auto preset Call preferences in Step 3 based on entry point
+            const callRadioYes = form.querySelector('input[name="disponibilita_call"][value="Sì, voglio prenotarla subito"]');
+            const callRadioNo = form.querySelector('input[name="disponibilita_call"][value="No, al momento voglio solo la risorsa gratuita"]');
+            
+            if (targetInterest === 'voglio parlare direttamente con Serenella') {
+                if (callRadioYes) callRadioYes.checked = true;
+            } else if (targetInterest === 'cerco una seconda entrata' || targetInterest === 'voglio partecipare al webinar') {
+                if (callRadioNo) callRadioNo.checked = true;
+            }
+            updateRadioCardStyles();
+        }
+    }
+
+    function closeModal() {
+        modalOverlay.classList.remove('active');
+        document.body.style.overflow = ''; // Restore scroll
+        
+        // Clear form fields
+        form.reset();
+        updateRadioCardStyles();
+    }
+
+    // Attach open handlers
+    openModalBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const interest = btn.getAttribute('data-target-interest');
+            let origin = "Landing CTA";
+            
+            if (btn.id === 'header-cta-btn') origin = "Header CTA";
+            if (btn.id === 'hero-cta-call') origin = "Hero Call CTA";
+            if (btn.id === 'hero-cta-guide') origin = "Hero Guide CTA";
+            if (btn.id === 'hero-cta-webinar') origin = "Hero Webinar CTA";
+            if (btn.id === 'benefits-cta') origin = "Benefits CTA";
+            if (btn.id === 'download-guide-btn') origin = "Guide Section Box";
+            if (btn.id === 'watch-webinar-btn') origin = "Webinar Section Box";
+            
+            openModal(origin, interest);
+        });
+    });
+
+    // Close handlers
+    btnCloseModal.addEventListener('click', closeModal);
+    modalOverlay.addEventListener('click', (e) => {
+        if (e.target === modalOverlay) closeModal();
+    });
+
+    // ==========================================
+    // RADIO CARD STYLING SYNC
+    // ==========================================
+    function updateRadioCardStyles() {
+        const radioCards = form.querySelectorAll('.radio-card');
+        radioCards.forEach(card => {
+            const radio = card.querySelector('input[type="radio"]');
+            if (radio && radio.checked) {
+                card.classList.add('selected');
+            } else {
+                card.classList.remove('selected');
+            }
+        });
+    }
+
+    // Attach click events on radio cards to trigger styling updates
+    form.querySelectorAll('.radio-card').forEach(card => {
+        card.addEventListener('click', () => {
+            const radio = card.querySelector('input[type="radio"]');
+            if (radio) {
+                radio.checked = true;
+                updateRadioCardStyles();
+            }
+        });
+    });
+
+    // ==========================================
+    // FORM STEP NAVIGATION & VALIDATION
+    // ==========================================
+    btnNextStep.addEventListener('click', () => {
+        if (validateStep(currentStep)) {
+            if (currentStep < totalSteps) {
+                currentStep++;
+                updateFormStep();
+            } else {
+                submitForm();
+            }
+        }
+    });
+
+    btnPrevStep.addEventListener('click', () => {
+        if (currentStep > 1) {
+            currentStep--;
+            updateFormStep();
+        }
+    });
+
+    function updateFormStep() {
+        // Show/hide steps
+        steps.forEach(step => {
+            step.classList.remove('active');
+            if (parseInt(step.getAttribute('data-step')) === currentStep) {
+                step.classList.add('active');
+            }
+        });
+
+        // Update Dots
+        stepDots.forEach(dot => {
+            const stepNum = parseInt(dot.getAttribute('data-step'));
+            dot.classList.remove('active', 'completed');
+            if (stepNum === currentStep) {
+                dot.classList.add('active');
+            } else if (stepNum < currentStep) {
+                dot.classList.add('completed');
+            }
+        });
+
+        // Update Progress Bar width
+        const progressPercentage = ((currentStep - 1) / (totalSteps - 1)) * 100;
+        stepProgressBar.style.width = `${progressPercentage}%`;
+
+        // Update Prev Button visibility
+        if (currentStep === 1) {
+            btnPrevStep.style.visibility = 'hidden';
+        } else {
+            btnPrevStep.style.visibility = 'visible';
+        }
+
+        // Update Next Button label
+        if (currentStep === totalSteps) {
+            btnNextStep.innerHTML = `Invia <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>`;
+        } else {
+            btnNextStep.innerHTML = `Avanti <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>`;
+        }
+
+        // Sync radio card highlights on step rendering
+        updateRadioCardStyles();
+    }
+
+    function validateStep(step) {
+        let valid = true;
+        const currentStepContainer = form.querySelector(`.form-step-content[data-step="${step}"]`);
+        const requiredInputs = currentStepContainer.querySelectorAll('[required]');
+        
+        requiredInputs.forEach(input => {
+            // Simple validation check
+            if (!input.value || input.value.trim() === '') {
+                valid = false;
+                showFieldError(input, "Questo campo è obbligatorio");
+            } else {
+                clearFieldError(input);
+            }
+            
+            // Email format check
+            if (input.type === 'email' && input.value) {
+                const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                if (!emailRegex.test(input.value)) {
+                    valid = false;
+                    showFieldError(input, "Inserisci un indirizzo email valido");
+                }
+            }
+            
+            // Phone validation check (at least 6 digits)
+            if (input.type === 'tel' && input.value) {
+                const phoneDigits = input.value.replace(/\D/g, '');
+                if (phoneDigits.length < 6) {
+                    valid = false;
+                    showFieldError(input, "Inserisci un numero di telefono valido");
+                }
+            }
+        });
+
+        if (!valid) {
+            showToast("Completa correttamente tutti i campi evidenziati per continuare.", "danger");
+        }
+
+        return valid;
+    }
+
+    function showFieldError(input, message) {
+        input.style.borderColor = 'var(--color-danger)';
+        input.style.boxShadow = '0 0 0 3px rgba(220, 53, 69, 0.1)';
+        
+        let errorSpan = input.parentNode.querySelector('.error-msg');
+        if (!errorSpan) {
+            errorSpan = document.createElement('span');
+            errorSpan.className = 'error-msg';
+            errorSpan.style.color = 'var(--color-danger)';
+            errorSpan.style.fontSize = '0.75rem';
+            errorSpan.style.marginTop = '4px';
+            errorSpan.style.display = 'block';
+            input.parentNode.appendChild(errorSpan);
+        }
+        errorSpan.textContent = message;
+    }
+
+    function clearFieldError(input) {
+        input.style.borderColor = '';
+        input.style.boxShadow = '';
+        const errorSpan = input.parentNode.querySelector('.error-msg');
+        if (errorSpan) {
+            errorSpan.remove();
+        }
+    }
+
+    // ==========================================
+    // TOAST NOTIFICATIONS
+    // ==========================================
+    function showToast(message, type = "success") {
+        toast.className = `alert-toast ${type} active`;
+        toastMessage.textContent = message;
+        
+        setTimeout(() => {
+            toast.classList.remove('active');
+        }, 4000);
+    }
+
+    // ==========================================
+    // LEAD SCORING & CLASSIFICATION LOGIC
+    // ==========================================
+    function calculateLeadScore(data) {
+        let score = 10; // +10 points just for completing the form
+        
+        // 1. Interesse Principale (Max +30 pts)
+        const interesse = data.interesse;
+        if (interesse === 'voglio parlare direttamente con Serenella' || interesse === 'cerco una nuova attivita') {
+            score += 30;
+        } else if (interesse === 'cerco una seconda entrata') {
+            score += 20;
+        } else if (interesse === 'voglio partecipare al webinar') {
+            score += 10;
+        } else if (interesse === 'voglio capire meglio i prodotti') {
+            score += 5;
+        }
+        
+        // 2. Disponibilità Call (Max +25 pts)
+        const disponibilita = data.disponibilita_call;
+        if (disponibilita === 'Sì, voglio prenotarla subito') {
+            score += 25;
+        } else if (disponibilita === 'Sì, ma preferisco essere contattato prima su WhatsApp') {
+            score += 15;
+        }
+        
+        // 3. Ore Disponibili (Max +15 pts)
+        const ore = data.ore_settimana;
+        if (ore === '10-20 ore' || ore === 'Più di 20 ore') {
+            score += 15;
+        } else if (ore === '5-10 ore') {
+            score += 10;
+        } else if (ore === 'Meno di 5 ore') {
+            score += 5;
+        }
+        
+        // 4. Situazione Lavorativa (Max +15 pts)
+        const lavoro = data.lavoro;
+        if (lavoro === 'Dipendente' || lavoro === 'Autonomo') {
+            score += 15;
+        } else if (lavoro === 'In cerca di occupazione') {
+            score += 10;
+        } else if (lavoro === 'Studente') {
+            score += 5;
+        }
+        
+        // 5. Fascia d'Età (Max +15 pts)
+        const eta = data.eta;
+        if (eta === '30-45 anni') {
+            score += 15;
+        } else if (eta === '46-60 anni' || eta === 'Under 30') {
+            score += 10;
+        } else if (eta === 'Over 60') {
+            score += 5;
+        }
+
+        // Apply high-intention source score (+10)
+        // High intention comes from requesting a call directly or organic channels
+        if (data.provenienza.includes("Call") || data.provenienza.includes("Box")) {
+            score += 10;
+        }
+        
+        // Caps at 100 points maximum
+        return Math.min(score, 100);
+    }
+
+    function classifyLead(score) {
+        if (score >= 70) return 'Caldo';
+        if (score >= 40) return 'Medio';
+        return 'Freddo';
+    }
+
+    // ==========================================
+    // FORM SUBMISSION & WEBHOOKS
+    // ==========================================
+    function submitForm() {
+        const formData = new FormData(form);
+        const data = {};
+        
+        formData.forEach((value, key) => {
+            data[key] = value;
+        });
+
+        // Add additional computed attributes
+        data.data_registrazione = new Date().toISOString();
+        data.id = 'lead_' + Math.random().toString(36).substr(2, 9);
+        
+        // If whatsapp checkbox wasn't checked, mark as No
+        if (!data.whatsapp) {
+            data.whatsapp = 'No';
+        }
+
+        // Calculate lead scoring
+        data.score = calculateLeadScore(data);
+        data.stato = classifyLead(data.score);
+
+        // Save locally to localStorage
+        saveLeadLocally(data);
+
+        // Trigger Webhook integration
+        sendWebhook(data);
+
+        // Show thank you screen inside the modal
+        renderThankYouState(data);
+    }
+
+    function saveLeadLocally(lead) {
+        let leads = [];
+        const localLeads = localStorage.getItem('serenella_leads');
+        if (localLeads) {
+            leads = JSON.parse(localLeads);
+        }
+        leads.push(lead);
+        localStorage.setItem('serenella_leads', JSON.stringify(leads));
+    }
+
+    function sendWebhook(lead) {
+        const webhookUrl = localStorage.getItem('serenella_webhook_url');
+        if (!webhookUrl) {
+            console.log("No webhook URL configured. Lead saved only locally.");
+            return;
+        }
+
+        fetch(webhookUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(lead),
+            mode: 'no-cors' // Use no-cors to prevent preflight errors with generic hooks
+        })
+        .then(() => {
+            console.log("Webhook triggered successfully with payload:", lead);
+        })
+        .catch(err => {
+            console.error("Failed to send lead to webhook:", err);
+        });
+    }
+
+    // ==========================================
+    // DYNAMIC THANK YOU RENDERING
+    // ==========================================
+    function renderThankYouState(lead) {
+        // Hide step indicators and form footer
+        const indicators = document.getElementById('indicators-container');
+        if (indicators) indicators.style.display = 'none';
+        modalFooter.style.display = 'none';
+        
+        // Change header title
+        modalTitle.textContent = "Registrazione Completata!";
+        
+        const modalBody = modalOverlay.querySelector('.modal-body');
+        
+        // Define dynamically the content based on the lead selection
+        let dynamicContent = '';
+        
+        const isCall = lead.disponibilita_call.includes("subito") || lead.interesse.includes("Serenella");
+        const isWebinar = lead.interesse.includes("webinar");
+        
+        if (isCall) {
+            // Caldo lead - requested a Call
+            dynamicContent = `
+                <div class="thankyou-container animate-fade">
+                    <div class="success-icon-wrapper">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                    </div>
+                    <h2>Grazie ${lead.nome}!</h2>
+                    <p class="thankyou-text">Il tuo profilo ha un punteggio di compatibilità iniziale di <strong>${lead.score}/100</strong>. Serenella riceverà la tua richiesta.</p>
+                    
+                    <div class="thankyou-action-box">
+                        <h4 class="thankyou-action-title">Prossimo Step Consigliato: Fissa l'orario</h4>
+                        <p class="thankyou-action-desc">Per evitare attese, puoi prenotare direttamente l'orario della chiamata conoscitiva sul calendario ufficiale di Serenella.</p>
+                        <a href="${calendarUrl}" target="_blank" class="btn btn-primary" style="width: 100%; margin-bottom: 15px;">
+                            📆 Prenota lo Slot sul Calendario
+                        </a>
+                        <a href="https://wa.me/${whatsappNum}?text=Ciao%20Serenella,%20ho%20appena%20compilato%20il%20form%20e%20vorrei%20fissare%20la%20call." target="_blank" class="btn btn-secondary" style="width: 100%;">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+                            Scrivi subito a Serenella su WhatsApp
+                        </a>
+                    </div>
+                </div>
+            `;
+        } else if (isWebinar) {
+            // Requested Webinar access
+            dynamicContent = `
+                <div class="thankyou-container animate-fade">
+                    <div class="success-icon-wrapper">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"></polygon><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect></svg>
+                    </div>
+                    <h2>Webinar Sbloccato!</h2>
+                    <p class="thankyou-text">Ciao ${lead.nome}, hai ora accesso alla video presentazione di 15 minuti di Serenella. Buona visione!</p>
+                    
+                    <div class="form-group">
+                        <div class="video-player-mock">
+                            <div class="video-player-overlay" id="play-video-trigger">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="60" height="60" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                                <span>Avvia il Webinar (15 Minuti)</span>
+                            </div>
+                            <iframe id="webinar-iframe" width="100%" height="100%" src="" frameborder="0" style="display:none;" allow="autoplay; encrypted-media" allowfullscreen></iframe>
+                        </div>
+                    </div>
+                    
+                    <div class="thankyou-action-box" style="margin-top: 25px;">
+                        <h4 class="thankyou-action-title">Vuoi accelerare i tempi?</h4>
+                        <p class="thankyou-action-desc">Se preferisci saltare il video e parlare a voce con Serenella, prenota subito una chiamata conoscitiva di 15 minuti.</p>
+                        <a href="${calendarUrl}" target="_blank" class="btn btn-primary" style="width: 100%;">
+                            📞 Fissa una Call ora
+                        </a>
+                    </div>
+                </div>
+            `;
+        } else {
+            // Requested Guida or General Product interest
+            dynamicContent = `
+                <div class="thankyou-container animate-fade">
+                    <div class="success-icon-wrapper">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                    </div>
+                    <h2>Risorsa Pronta!</h2>
+                    <p class="thankyou-text">Grazie ${lead.nome}, la tua guida pratica in formato PDF è pronta per essere letta ed approfondita.</p>
+                    
+                    <div class="thankyou-action-box">
+                        <h4 class="thankyou-action-title">Scarica la Guida</h4>
+                        <p class="thankyou-action-desc">Clicca sul pulsante sottostante per avviare il download immediato della guida professionale sul Green Business.</p>
+                        <a href="#" class="btn btn-primary" id="btn-download-pdf-mock" style="width: 100%; margin-bottom: 20px;">
+                            ⬇️ Scarica il PDF (Guida Pratica)
+                        </a>
+                        <p style="font-size: 0.8rem; color: var(--color-text-muted);">
+                            La guida è stata inoltre inviata alla tua email: <strong>${lead.email}</strong>.
+                        </p>
+                    </div>
+                    
+                    <div class="thankyou-action-box">
+                        <h4 class="thankyou-action-title">Hai delle domande dopo la lettura?</h4>
+                        <p class="thankyou-action-desc">Serenella è a disposizione per chiarire qualsiasi punto in una telefonata informale di 15 minuti.</p>
+                        <a href="${calendarUrl}" target="_blank" class="btn btn-secondary" style="width: 100%;">
+                            📞 Fissa Call di Approfondimento
+                        </a>
+                    </div>
+                </div>
+            `;
+        }
+        
+        modalBody.innerHTML = dynamicContent;
+
+        // YouTube URL Normalizer helper
+        function normalizeYouTubeUrl(input) {
+            if (!input || input.trim() === '') return '';
+            const raw = input.trim();
+
+            // Already embed format — return as-is
+            if (raw.includes('youtube.com/embed/')) return raw;
+
+            // Extract 11-char video ID from any YouTube URL format
+            const patterns = [
+                /youtu\.be\/([A-Za-z0-9_-]{11})/,
+                /youtube\.com\/watch\?.*v=([A-Za-z0-9_-]{11})/,
+                /youtube\.com\/v\/([A-Za-z0-9_-]{11})/,
+                /youtube\.com\/shorts\/([A-Za-z0-9_-]{11})/,
+            ];
+
+            for (const pattern of patterns) {
+                const match = raw.match(pattern);
+                if (match && match[1]) {
+                    return `https://www.youtube.com/embed/${match[1]}?rel=0&modestbranding=1`;
+                }
+            }
+
+            return raw;
+        }
+
+        // Add special interactions inside the dynamic Thank You view
+        const playBtn = document.getElementById('play-video-trigger');
+        if (playBtn) {
+            playBtn.addEventListener('click', () => {
+                const iframe = document.getElementById('webinar-iframe');
+                iframe.src = normalizeYouTubeUrl(webinarUrl); // Use normalized YouTube URL
+                iframe.style.display = 'block';
+                playBtn.style.display = 'none';
+            });
+        }
+
+        const downloadPdfBtn = document.getElementById('btn-download-pdf-mock');
+        if (downloadPdfBtn) {
+            downloadPdfBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                showToast("Download della Guida avviato con successo!", "success");
+                
+                const link = document.createElement('a');
+                link.href = guideName; // Use configured guide file path
+                link.download = guideName;
+                link.click();
+            });
+        }
+    }
+});
